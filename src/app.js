@@ -6,7 +6,7 @@ import authRoutes from "./routes/authRoutes.js";
 import blogPublicRoutes from "./routes/blogPublicRoutes.js";
 import blogAdminRoutes from "./routes/blogAdminRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
-
+import helmet from "helmet";
 const app = express();
 
 // Middleware (order matters: cookies must be parsed before routes run)
@@ -14,6 +14,7 @@ app.use(cors({ origin: process.env.CLIENT_ORIGIN, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 app.use(originCheck);
+app.use(helmet());
 
 // Routes
 app.use("/api/admin/auth", authRoutes);

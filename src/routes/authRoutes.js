@@ -16,6 +16,7 @@ const loginLimiter = rateLimit({
   },
 });
 
+
 router.post("/login", loginLimiter, login);
 router.get("/me", requireAdmin, me);
 router.post("/logout", requireAdmin, logout);

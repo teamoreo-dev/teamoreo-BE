@@ -1,0 +1,512 @@
+# 🍪 Team Oreo — Backend & Admin API
+
+**Express · MongoDB Atlas · JWT Cookie Sessions · Cloudinary**
+
+![Node.js](https://img.shields.io/badge/Node.js-20%2B-green)
+![Express](https://img.shields.io/badge/Express-4-lightgrey)
+![MongoDB](https://img.shields.io/badge/Database-MongoDB%20Atlas-green)
+![Auth](https://img.shields.io/badge/Auth-JWT%20Cookie-blue)
+![Status](https://img.shields.io/badge/Status-In%20Development-orange)
+
+Public website integrations, content publishing, enquiry management and secure administration — per the Team Oreo Backend & Admin Development Brief.
+
+---
+
+## 📑 Contents
+
+- [📌 Overview](#-overview)
+- [✨ Features](#-features)
+- [🧱 Tech Stack](#-tech-stack)
+- [📁 Project Structure](#-project-structure)
+- [⚙️ Setup](#️-setup)
+- [🔗 Integration Contract — Frontend, Read This](#-integration-contract--frontend-read-this)
+- [📡 API Reference](#-api-reference)
+- [🗃️ Data Models](#️-data-models)
+- [🔐 Security](#-security)
+- [🧪 Testing](#-testing)
+- [🗺️ Roadmap](#️-roadmap)
+- [🆘 Troubleshooting](#-troubleshooting)
+- [🌿 Git Workflow](#-git-workflow)
+
+---
+
+## 📌 Overview
+
+A lightweight content and enquiry management API for the Team Oreo website rebuild.
+
+It powers admin authentication, blog publishing and (next) contact enquiries — intentionally not a CRM, enterprise CMS or multi-role platform.
+
+### Milestone Scope & Status
+
+| Milestone | Scope | Status |
+|---|---|---|
+| M1 — Contract & setup | Express app, Atlas connection, env contract | ✅ Done |
+| M2 — Security & models | Admin seed / login / logout / me, auth middleware, error handling | ✅ Done |
+| M3 — Blog API | Blog CRUD, slugs, drafts/publish, image uploads, validation | ✅ Done |
+| M4 — Contact & dashboard | Public contact form API, admin enquiries, dashboard summary | 🔜 Next |
+| M5 — Admin UI & integration | Next.js `/admin` routes, end-to-end QA | ⏳ Pending |
+
+---
+
+## ✨ Features
+
+### 🔐 Authentication & Access Control
+
+- Login / logout / session check via short-lived JWT in an HttpOnly cookie.
+- Admins provisioned through a documented CLI script — no public sign-up, ever.
+- Server-side `requireAdmin` middleware on every protected endpoint (hiding buttons ≠ access control).
+- Login rate-limiting and deliberately generic credential errors.
+
+### 📰 Blog Content Management
+
+- Full CRUD with draft → publish → unpublish workflow.
+- Auto-generated URL slugs with collision handling (`title`, `title-2`, `title-3`…).
+- Drafts never appear in public endpoints — filtered server-side.
+- Featured image uploads to Cloudinary (MIME whitelist, 5 MB cap).
+- Rich-text HTML sanitized server-side before storage (stored-XSS defense).
+
+### ✅ Quality & Reliability
+
+- Field-level request validation with structured error responses.
+- One consistent response envelope across every endpoint.
+- Centralized error handler — no stack traces, credentials or DB internals ever reach clients.
+
+---
+
+## 🧱 Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Runtime | Node.js 20+ (ESM) · `node --watch` in dev |
+| Framework | Express 4 |
+| Database | MongoDB Atlas + Mongoose |
+| Auth | `jsonwebtoken` + `bcryptjs` (12 rounds), HttpOnly cookies |
+| Validation | `express-validator` · `sanitize-html` |
+| Uploads | `multer` → Cloudinary |
+| Hardening | `helmet` · `cors` · `express-rate-limit` · `cookie-parser` |
+
+---
+
+## 📁 Project Structure
+
+```text
+src/
+├── server.js                    # Entry point: env check → DB connect → listen
+├── app.js                       # Middleware stack, route mounting, error handler
+├── config/
+│   └── db.js                    # Mongoose connection
+├── models/
+│   ├── Admin.js                 # Admin accounts
+│   └── Blog.js                  # Articles + uniqueSlug() helper
+├── controllers/
+│   ├── authController.js        # Login / me / logout
+│   ├── blogController.js       # Public + admin blog CRUD
+│   └── uploadController.js     # Multer → Cloudinary
+├── routes/
+│   ├── authRoutes.js           # /api/admin/auth/*
+│   ├── blogPublicRoutes.js     # /api/blogs/**
+│   ├── blogAdminRoutes.js      # /api/admin/blogs/** (protected)
+│   └── uploadRoutes.js         # /api/admin/uploads (protected)
+├── middleware/
+│   ├── requireAdmin.js         # Verifies cookie, loads admin, attaches req.admin
+│   ├── validate.js             # express-validator results → 400 envelope
+│   ├── originCheck.js          # CSRF defense: origin allowlist
+│   └── rateLimiters.js         # Login limiter
+└── scripts/
+    └── createAdmin.js          # CLI: create/reset the first admin
+```
+
+---
+
+## ⚙️ Setup
+
+### Prerequisites
+
+| Tool | Why | Get it |
+|---|---|---|
+| Node.js ≥ 20 | Run the server | [nodejs.org](https://nodejs.org/) |
+| MongoDB Atlas account | Free M0 cluster = your database | [mongodb.com/atlas](https://www.mongodb.com/atlas) |
+| Cloudinary account | Blog image storage (optional for CRUD testing) | [cloudinary.com](https://cloudinary.com/) |
+
+### 1️⃣ Install
+
+```bash
+git clone <repo-url>
+cd <repo>
+npm install
+```
+
+### 2️⃣ Configure Environment
+
+Copy `.env.example` → `.env` and fill in real values:
+
+```dotenv
+PORT=5000
+NODE_ENV=development
+MONGODB_URI=mongodb+srv://<user>:<pass>@cluster0.xxxxx.mongodb.net/team-oreo
+JWT_SECRET=<long-random-string>
+JWT_EXPIRES_IN=2h
+CLIENT_ORIGIN=http://localhost:3000
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+```
+
+Generate a strong JWT secret:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+```
+
+> ⚠️ The server refuses to start if `MONGODB_URI` or `JWT_SECRET` is missing — intentional (brief §9.2). Real secrets live only in `.env` (gitignored); `.env.example` ships dummy values.
+
+#### Environment Variables
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `PORT` | — | API port (default 5000) |
+| `NODE_ENV` | — | Production enables Secure cookies (HTTPS required) |
+| `MONGODB_URI` | ✅ | Atlas connection string |
+| `JWT_SECRET` | ✅ | Signs session tokens |
+| `JWT_EXPIRES_IN` | — | Session lifetime (default 2h) |
+| `CLIENT_ORIGIN` | — | Comma-separated allowlist for CORS + origin checks |
+| `CLOUDINARY_*` | For uploads | Image storage credentials |
+
+### 3️⃣ Create the First Administrator
+
+No public sign-up exists (brief §4.2). Provision via CLI:
+
+```bash
+node src/scripts/createAdmin.js admin@teamoreo.test "StrongPassword123" "Oreo Admin"
+```
+
+Expected output:
+
+```text
+✅ Admin created: admin@teamoreo.test
+```
+
+Running it again with an existing email resets that admin's password.
+
+### 4️⃣ Run
+
+```bash
+npm run dev   # Development — auto-restarts on file change
+npm start     # Production
+```
+
+**Health check:**
+
+`GET http://localhost:5000/api/health`
+
+Expected response:
+
+```json
+{
+  "success": true,
+  "message": "TeamOreo API is running"
+}
+```
+
+---
+
+## 🔗 Integration Contract — Frontend, Read This
+
+Agreed up front per brief §3.2, so parallel frontend work is safe.
+
+| Item | Decision |
+|---|---|
+| API base URL (dev) | `http://localhost:5000` |
+| Auth | JWT in cookie `admin_token` — HttpOnly · SameSite=Lax · Secure in prod · 2h expiry |
+| Cookies on frontend | Nothing to do — same-origin requests attach it automatically |
+| Recommended proxy | Next.js rewrite (below) keeps frontend + API same-origin |
+| Success envelope | `{ "success": true, "data": …, "message": "…" }` |
+| Error envelope | `{ "success": false, "error": { "code", "message", "fields"? } }` |
+| Error codes | `VALIDATION_ERROR` · `INVALID_JSON` · `INVALID_CREDENTIALS` · `UNAUTHENTICATED` · `FORBIDDEN` · `NOT_FOUND` · `CONFLICT` · `INVALID_FILE` · `FILE_TOO_LARGE` · `RATE_LIMITED` · `INTERNAL_ERROR` |
+| Status codes | 200/201 ok · 400 bad input/JSON · 401 unauthenticated · 403 bad origin · 404 missing · 409 duplicate · 413 oversized upload · 429 rate-limited · 500 internal |
+| Field naming | camelCase, exactly as in the schema tables |
+
+### Next.js Rewrite
+
+```javascript
+// next.config.js — same-origin cookie handling
+async rewrites() {
+  return [
+    {
+      source: '/api/:path*',
+      destination: 'http://localhost:5000/api/:path*',
+    },
+  ];
+}
+```
+
+---
+
+## 📡 API Reference
+
+**Method legend:** 🟢 GET · 🔵 POST · 🟡 PATCH · 🔴 DELETE
+
+All admin routes require the `admin_token` cookie; requests without it get `401` before any handler runs.
+
+### 🛡️ Authentication — `/api/admin/auth`
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| 🔵 POST | `/api/admin/auth/login` | Public | Validate credentials, set session cookie |
+| 🟢 GET | `/api/admin/auth/me` | Admin | Current admin profile (password hash never returned) |
+| 🔵 POST | `/api/admin/auth/logout` | Admin | Clear the session cookie |
+
+**Login request:**
+
+```json
+{
+  "email": "admin@teamoreo.test",
+  "password": "StrongPassword123"
+}
+```
+
+**Expected response — `200`:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "…",
+    "email": "…",
+    "name": "Oreo Admin"
+  },
+  "message": "Logged in"
+}
+```
+
+- ❌ Wrong credentials → `401 INVALID_CREDENTIALS` — `"Invalid email or password"`, always generic.
+- 🚦 Rate limit: 10 attempts / 15 min → `429`.
+- 🍪 Success sets `admin_token`; no extra headers needed on later calls.
+
+### 📰 Blog — Public (No Auth)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| 🟢 GET | `/api/blogs` | Published only. Query: `page` · `limit` (≤50) · `category` · `search` |
+| 🟢 GET | `/api/blogs/:slug` | One published article by slug — 404 for drafts/missing |
+
+**Example request:**
+
+```http
+GET /api/blogs?page=1&limit=9&search=championship
+```
+
+**Example response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "title": "Team Oreo Wins the Championship",
+        "slug": "team-oreo-wins-the-championship",
+        "excerpt": "A recap of the biggest match.",
+        "featuredImage": {
+          "url": "https://…",
+          "publicId": "…",
+          "alt": "…"
+        },
+        "category": "News",
+        "author": "Oreo Admin",
+        "publishedAt": "2025-01-15T10:00:00.000Z"
+      }
+    ],
+    "page": 1,
+    "limit": 9,
+    "total": 1,
+    "totalPages": 1
+  }
+}
+```
+
+Listing responses exclude `content` (cards don't need the body — fetch it via the slug endpoint). Newest-first by `publishedAt`; search is case-insensitive across title + excerpt.
+
+### ✏️ Blog — Admin (Session Required)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| 🟢 GET | `/api/admin/blogs` | All statuses · query: `page` · `limit` · `status` · `category` · `search` |
+| 🟢 GET | `/api/admin/blogs/:id` | Full article including content (edit form) |
+| 🔵 POST | `/api/admin/blogs` | Create draft or published article |
+| 🟡 PATCH | `/api/admin/blogs/:id` | Partial update — any subset of fields, including status |
+| 🔴 DELETE | `/api/admin/blogs/:id` | Hard delete — confirm in the UI |
+
+**Create blog request** (`*` = required):
+
+```json
+{
+  "title": "Team Oreo Wins the Championship",
+  "excerpt": "A recap of the biggest match.",
+  "content": "<h2>Match day</h2><p>Full story…</p>",
+  "category": "News",
+  "author": "Oreo Admin",
+  "featuredImage": {
+    "url": "https://…",
+    "alt": "…"
+  },
+  "status": "published"
+}
+```
+
+- `title`* — 3–200 chars.
+- `excerpt`* — 10–500 chars.
+- `content`* — HTML, sanitized server-side.
+- `category`* — required.
+- `author`* — required.
+- `featuredImage.url`* — required.
+- `status` — optional; defaults to `draft`.
+
+**Publishing rules:**
+
+- `status: "published"` sets `publishedAt` on first publish only; `status: "draft"` resets it to `null`.
+- Slug is editable via `PATCH { "slug": "…" }` — collisions auto-suffix `-2`, `-3`…
+- Every admin route returns `401` cleanly without a valid session (verified, not assumed).
+
+### 🖼️ Image Uploads
+
+| Method | Endpoint | Auth | Contract |
+|---|---|---|---|
+| 🔵 POST | `/api/admin/uploads` | Admin | `multipart/form-data`, field name `image` · JPEG/PNG/WebP · ≤ 5 MB |
+
+**Example response — `201`:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "url": "https://res.cloudinary.com/…",
+    "publicId": "team-oreo/blogs/…",
+    "bytes": 102400
+  },
+  "message": "Image uploaded"
+}
+```
+
+Use `data.url` as `featuredImage.url`.
+
+Wrong type → `400 INVALID_FILE` · Over 5 MB → `413 FILE_TOO_LARGE`.
+
+---
+
+## 🗃️ Data Models
+
+### Admin — `src/models/Admin.js`
+
+| Field | Type | Rules |
+|---|---|---|
+| `name` | String | Required, trimmed |
+| `email` | String | Required · unique · lowercased |
+| `passwordHash` | String | Required — bcrypt hash; plaintext never stored or logged |
+| `createdAt` / `updatedAt` | Date | Automatic |
+
+### Blog — `src/models/Blog.js`
+
+| Field | Type | Rules |
+|---|---|---|
+| `title` | String | Required · 3–200 |
+| `slug` | String | Required · unique · URL-safe · auto-generated, editable |
+| `excerpt` | String | Required · 10–500 |
+| `content` | String | Required · HTML · sanitized pre-storage |
+| `featuredImage` | Object | `{ url (required), publicId, alt }` |
+| `category` | String | Required |
+| `author` | String | Required |
+| `status` | String | `draft` \| `published` — default `draft` |
+| `publishedAt` | Date | Set on first publish · `null` for drafts |
+| `seoTitle` / `seoDescription` | String | Optional |
+| `createdAt` / `updatedAt` | Date | Automatic |
+
+**Indexes:** Unique slug · `{ status: 1, publishedAt: -1 }` (public listing) · category (filtering).
+
+### Contact — Planned (M4)
+
+📋 **Planned schema — not yet implemented.**
+
+---
+
+## 🔐 Security
+
+| Control | Implementation |
+|---|---|
+| 🔑 Passwords | bcrypt · 12 rounds · generic login errors · no public sign-up (CLI only) |
+| 🎫 Sessions | 2h signed JWT · HttpOnly · SameSite=Lax · Secure in production |
+| 🛡️ CSRF | SameSite cookie + `originCheck` middleware (non-allowlisted origins → 403 on state changes) |
+| 🚪 Authorization | `requireAdmin` verifies JWT and loads the admin from DB on every protected route |
+| 🧼 XSS | `sanitize-html` strips scripts/event handlers from article content before storage |
+| ✅ Input | Every body/query validated; malformed JSON → clean `400 INVALID_JSON` |
+| 🖼️ Uploads | MIME whitelist · 5 MB cap · Cloudinary-generated safe identifiers |
+| 🚫 Errors | Centralized handler — no stack traces, secrets or DB internals to clients |
+| 🚦 Rate limits | Login: 10 / 15 min |
+
+---
+
+## 🧪 Testing
+
+Manual suite (Thunder Client) mapped to brief §11.1:
+
+- ✅ Valid login sets cookie; `/me` returns profile.
+- ✅ Wrong password → `401 INVALID_CREDENTIALS` (generic).
+- ✅ Admin endpoints without cookie → `401 UNAUTHENTICATED`.
+- ✅ Malformed JSON body → `400 INVALID_JSON` (no HTML/stack trace).
+- ✅ Create published article → appears in public list + slug detail.
+- ⬜ Unpublish → article vanishes from public endpoints.
+- ⬜ Republish → reappears.
+- ⬜ Duplicate title → slug `-2` suffix.
+- ⬜ Validation failure → `400` with fields map.
+- ⬜ Delete → removed from admin + public.
+- ⬜ Image upload → Cloudinary URL (endpoint implemented; Thunder free tier blocks file uploads — test via `curl -F` or Postman).
+
+📸 Evidence screenshots are attached to the PR.
+
+---
+
+## 🗺️ Roadmap
+
+### Next — M4 (Contact & Dashboard)
+
+- Contact model + public `POST /api/contact` (validated, rate-limited, no auth).
+- Admin enquiry management — list / detail / status (`new` → `read` → `resolved`) / delete.
+- `GET /api/admin/dashboard/summary` — article + enquiry counts, 5 recent enquiries.
+
+### Then — M5 (Admin UI & Integration)
+
+- Next.js `/admin` routes: login · dashboard · blogs list/new/edit · contacts list/detail · sidebar + logout.
+- End-to-end integration with the public blog/contact frontend owner.
+
+### Open Questions for Team Lead (Brief §13)
+
+- Public blog route `/blogs` vs `/insights`.
+- Contact subject field.
+- Upload Brief attachment.
+- Cloudinary account ownership.
+- Admin credential provisioning.
+- API/DB hosting.
+
+---
+
+## 🆘 Troubleshooting
+
+⚠️ Common issues & fixes — click to expand.
+
+---
+
+## 🌿 Git Workflow
+
+```text
+staging ──← feature/backend-admin-system (PRs only)
+```
+
+- Branch from latest `staging` → PR into `staging`.
+- ❌ Never push directly to `main`.
+- ❌ Never commit `.env` or rewrite another developer's pages.
+
+---
+
+**Team Oreo · Backend & Admin System · M1–M3 delivered**
+
+Questions? Ping the backend/admin assignee on the PR.
