@@ -1,0 +1,41 @@
+{
+  "name": "teamoreo-be",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "seed:admin": "node src/scripts/seedAdmin.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/teamoreo-dev/teamoreo-BE.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/teamoreo-dev/teamoreo-BE/issues"
+  },
+  "homepage": "https://github.com/teamoreo-dev/teamoreo-BE#readme",
+  "dependencies": {
+    "argon2": "^0.45.1",
+    "cloudinary": "^2.11.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.7",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.1",
+    "express-validator": "^7.3.2",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.11.1",
+    "multer": "^2.4.0",
+    "sanitize-html": "^2.18.0",
+    "slugify": "^1.6.9",
+    "zod": "^4.6.6"
+  }
+}
