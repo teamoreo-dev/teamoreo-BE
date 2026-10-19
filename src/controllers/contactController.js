@@ -1,4 +1,4 @@
-import Contact from "../models/contact";
+import Contact from "../models/Contact.js";
 
 const escapeRegex = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 

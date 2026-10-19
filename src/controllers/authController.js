@@ -1,7 +1,7 @@
 import { verify } from "argon2";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
-import Admin from "../models/Admin";
+import Admin from "../models/Admin.js";
 
 const loginSchema = z.object({
   email: z.string().email().max(254),
