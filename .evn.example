@@ -1,9 +1,0 @@
-PORT=5000
-MONGODB_URI= "   "
-JWT_SECRET="   "
-ADMIN_NAME=Lorem Torem
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=abcdefg123456
-CLOUD_NAME="   "
-API_KEY="   "
-API_SECRET="   "

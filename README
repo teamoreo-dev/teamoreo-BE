@@ -80,7 +80,7 @@ It powers admin authentication, blog publishing and (next) contact enquiries —
 | Runtime | Node.js 20+ (ESM) · `node --watch` in dev |
 | Framework | Express 4 |
 | Database | MongoDB Atlas + Mongoose |
-| Auth | `jsonwebtoken` + `bcryptjs` (12 rounds), HttpOnly cookies |
+| Auth | `jsonwebtoken` + Argon2id (legacy bcrypt hashes upgraded on login), HttpOnly cookies |
 | Validation | `express-validator` · `sanitize-html` |
 | Uploads | `multer` → Cloudinary |
 | Hardening | `helmet` · `cors` · `express-rate-limit` · `cookie-parser` |
@@ -158,7 +158,7 @@ Generate a strong JWT secret:
 node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ```
 
-> ⚠️ The server refuses to start if `MONGODB_URI` or `JWT_SECRET` is missing — intentional (brief §9.2). Real secrets live only in `.env` (gitignored); `.env.example` ships dummy values.
+> ⚠️ The server refuses to start if `MONGODB_URI`, `JWT_SECRET`, or `CLIENT_ORIGIN` is missing — intentional (brief §9.2). Real secrets live only in `.env` (gitignored); `.env.example` ships blank placeholders.
 
 #### Environment Variables
 
@@ -169,7 +169,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 | `MONGODB_URI` | ✅ | Atlas connection string |
 | `JWT_SECRET` | ✅ | Signs session tokens |
 | `JWT_EXPIRES_IN` | — | Session lifetime (default 2h) |
-| `CLIENT_ORIGIN` | — | Comma-separated allowlist for CORS + origin checks |
+| `CLIENT_ORIGIN` | ✅ | Comma-separated allowlist for CORS + origin checks |
 | `CLOUDINARY_*` | For uploads | Image storage credentials |
 
 ### 3️⃣ Create the First Administrator
@@ -396,16 +396,16 @@ Wrong type → `400 INVALID_FILE` · Over 5 MB → `413 FILE_TOO_LARGE`.
 
 ## 🗃️ Data Models
 
-### Admin — `src/models/Admin.js`
+### Admin — `src/models/admin.js`
 
 | Field | Type | Rules |
 |---|---|---|
 | `name` | String | Required, trimmed |
 | `email` | String | Required · unique · lowercased |
-| `passwordHash` | String | Required — bcrypt hash; plaintext never stored or logged |
+| `passwordHash` | String | Required — Argon2id hash; legacy bcrypt hashes are upgraded on login |
 | `createdAt` / `updatedAt` | Date | Automatic |
 
-### Blog — `src/models/Blog.js`
+### Blog — `src/models/blog.js`
 
 | Field | Type | Rules |
 |---|---|---|
@@ -433,7 +433,7 @@ Wrong type → `400 INVALID_FILE` · Over 5 MB → `413 FILE_TOO_LARGE`.
 
 | Control | Implementation |
 |---|---|
-| 🔑 Passwords | bcrypt · 12 rounds · generic login errors · no public sign-up (CLI only) |
+| 🔑 Passwords | Argon2id · legacy bcrypt hashes upgraded on login · generic login errors · no public sign-up (CLI only) |
 | 🎫 Sessions | 2h signed JWT · HttpOnly · SameSite=Lax · Secure in production |
 | 🛡️ CSRF | SameSite cookie + `originCheck` middleware (non-allowlisted origins → 403 on state changes) |
 | 🚪 Authorization | `requireAdmin` verifies JWT and loads the admin from DB on every protected route |
