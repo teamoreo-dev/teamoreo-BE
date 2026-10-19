@@ -6,6 +6,9 @@ import authRoutes from "./routes/authRoutes.js";
 import blogPublicRoutes from "./routes/blogPublicRoutes.js";
 import blogAdminRoutes from "./routes/blogAdminRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
+import contactPublicRoutes from "./routes/contactPublicRoutes.js";
+import contactAdminRoutes from "./routes/contactAdminRoutes.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
 import helmet from "helmet";
 const app = express();
 
@@ -16,11 +19,17 @@ app.use(cookieParser());
 app.use(originCheck);
 app.use(helmet());
 
+
 // Routes
 app.use("/api/admin/auth", authRoutes);
 app.use("/api/blogs", blogPublicRoutes);
 app.use("/api/admin/blogs", blogAdminRoutes);
 app.use("/api/admin", uploadRoutes); // → POST /api/admin/uploads
+app.use("/api/contact", contactPublicRoutes);
+app.use("/api/admin/contacts", contactAdminRoutes);
+app.use("/api/admin/dashboard", dashboardRoutes);
+
+
 
 // Health check
 app.get("/api/health", (_req, res) => {
