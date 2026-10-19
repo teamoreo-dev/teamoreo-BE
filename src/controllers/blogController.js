@@ -1,5 +1,5 @@
 import sanitizeHtml from "sanitize-html";
-import Blog from "../models/Blog.js";
+import Blog from "../models/blog.js";
 
 const escapeRegex = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 

@@ -1,7 +1,8 @@
-import { verify } from "argon2";
+import argon2 from "argon2";
+import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
-import Admin from "../models/Admin.js";
+import Admin from "../models/admin.js";
 
 const loginSchema = z.object({
   email: z.string().email().max(254),
@@ -27,13 +28,28 @@ export async function login(req, res, next) {
 
     const { email, password } = parsed.data;
     const admin = await Admin.findOne({ email: email.toLowerCase() }).select("+passwordHash");
-    const valid = admin && (await verify(admin.passwordHash, password));
+    let valid = false;
+    let legacyBcryptHash = false;
+
+    if (admin) {
+      if (admin.passwordHash.startsWith("$argon2")) {
+        valid = await argon2.verify(admin.passwordHash, password);
+      } else if (/^\$2[aby]\$/.test(admin.passwordHash)) {
+        valid = await bcrypt.compare(password, admin.passwordHash);
+        legacyBcryptHash = valid;
+      }
+    }
 
     if (!valid) {
       return res.status(401).json({
         success: false,
         error: { code: "INVALID_CREDENTIALS", message: "Invalid email or password" },
       });
+    }
+
+    if (legacyBcryptHash) {
+      admin.passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+      await admin.save();
     }
 
     const token = jwt.sign({ sub: admin._id.toString() }, process.env.JWT_SECRET, {

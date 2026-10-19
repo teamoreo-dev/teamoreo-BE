@@ -1,7 +1,7 @@
 import "dotenv/config";
 import mongoose from "mongoose";
 import argon2 from "argon2";
-import Admin from "../models/Admin.js";
+import Admin from "../models/admin.js";
 
 const { ADMIN_NAME, ADMIN_EMAIL, ADMIN_PASSWORD, MONGODB_URI } = process.env;
 

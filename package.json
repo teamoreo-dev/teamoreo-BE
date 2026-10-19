@@ -2,7 +2,7 @@
   "name": "teamoreo-be",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/app.js",
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -23,6 +23,7 @@
   "homepage": "https://github.com/teamoreo-dev/teamoreo-BE#readme",
   "dependencies": {
     "argon2": "^0.45.1",
+    "bcryptjs": "^3.0.3",
     "cloudinary": "^2.11.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
