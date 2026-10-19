@@ -1,5 +1,5 @@
 import Blog from "../models/Blog.js";
-import Contact from "../models/contact.js";
+import Contact from "../models/Contact.js";
 
 export async function summary(_req, res, next) {
   try {
