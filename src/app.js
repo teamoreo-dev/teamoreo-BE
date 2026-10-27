@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import cookieParser from "cookie-parser"; // ← this was missing
+import cookieParser from "cookie-parser";
 import originCheck from "./middleware/originCheck.js";
 import authRoutes from "./routes/authRoutes.js";
 import blogPublicRoutes from "./routes/blogPublicRoutes.js";
@@ -10,26 +10,34 @@ import contactPublicRoutes from "./routes/contactPublicRoutes.js";
 import contactAdminRoutes from "./routes/contactAdminRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import helmet from "helmet";
+import { errorHandler, notFound } from "./middleware/errorHandler.js";
+import { allowedOrigins } from "./config/runtime.js";
 const app = express();
+if (process.env.TRUST_PROXY) app.set("trust proxy", Number(process.env.TRUST_PROXY));
+app.use(helmet());
 
 // Middleware (order matters: cookies must be parsed before routes run)
-app.use(cors({ origin: process.env.CLIENT_ORIGIN, credentials: true }));
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins().includes(origin)) return callback(null, true);
+    const error = new Error("Request origin is not allowed");
+    error.status = 403;
+    error.code = "FORBIDDEN_ORIGIN";
+    return callback(error);
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 app.use(originCheck);
-app.use(helmet());
-
-
 // Routes
 app.use("/api/admin/auth", authRoutes);
 app.use("/api/blogs", blogPublicRoutes);
 app.use("/api/admin/blogs", blogAdminRoutes);
-app.use("/api/admin", uploadRoutes); // → POST /api/admin/uploads
+app.use("/api/admin", uploadRoutes);
 app.use("/api/contact", contactPublicRoutes);
 app.use("/api/admin/contacts", contactAdminRoutes);
 app.use("/api/admin/dashboard", dashboardRoutes);
-
-
 
 // Health check
 app.get("/api/health", (_req, res) => {
@@ -37,24 +45,9 @@ app.get("/api/health", (_req, res) => {
 });
 
 // 404
-app.use((_req, res) =>
-  res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Route not found" } })
-);
+app.use(notFound);
 
 // Centralized error handler (must be LAST — catches malformed JSON too)
-app.use((err, _req, res, _next) => {
-  if (err.type === "entity.parse.failed") {
-    return res.status(400).json({
-      success: false,
-      error: { code: "INVALID_JSON", message: "Request body must be valid JSON" },
-    });
-  }
-  const status = err.status || 500;
-  if (status >= 500) console.error("[error]", err);
-  res.status(status).json({
-    success: false,
-    error: { code: err.code || "INTERNAL_ERROR", message: status >= 500 ? "Internal server error" : err.message },
-  });
-});
+app.use(errorHandler);
 
 export default app;

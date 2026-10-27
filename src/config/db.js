@@ -1,15 +1,6 @@
+import mongoose from "mongoose";
 
-import { connect } from "mongoose";
-
-const connectDB = async () => {
-  try {
-    await connect(process.env.MONGODB_URI);
-
-    console.log("MongoDB connected successfully");
-  } catch (error) {
-    console.error("MongoDB connection failed:", error.message);
-    process.exit(1);
-  }
-};
-
-export default connectDB;
+export default async function connectDB() {
+  await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
+  console.log("MongoDB connected successfully");
+}

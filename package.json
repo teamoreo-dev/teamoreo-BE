@@ -1,14 +1,15 @@
 {
   "name": "teamoreo-be",
   "version": "1.0.0",
-  "description": "",
+  "description": "Team Oreo blog and enquiry administration API",
   "main": "src/app.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test test/app.test.js test/backend.test.js",
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "seed:admin": "node src/scripts/seedAdmin.js"
+    "seed:admin": "node src/scripts/seedAdmin.js",
+    "test:coverage": "node --test --experimental-test-coverage test/app.test.js test/backend.test.js"
   },
   "repository": {
     "type": "git",
@@ -36,7 +37,9 @@
     "mongoose": "^9.11.1",
     "multer": "^2.4.0",
     "sanitize-html": "^2.18.0",
-    "slugify": "^1.6.9",
-    "zod": "^4.6.6"
+    "slugify": "^1.6.9"
+  },
+  "engines": {
+    "node": ">=20.19.0"
   }
 }

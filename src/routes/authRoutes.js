@@ -1,23 +1,22 @@
 import { Router } from "express";
-import rateLimit from "express-rate-limit";
+import { body } from "express-validator";
 import { login, me, logout } from "../controllers/authController.js";
 import requireAdmin from "../middleware/requireAdmin.js";
+import { loginLimiter } from "../middleware/rateLimiters.js";
+import { objectBody } from "../middleware/requestValidation.js";
+import { validate } from "../middleware/validate.js";
 
 const router = Router();
 
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    success: false,
-    error: { code: "RATE_LIMITED", message: "Too many attempts, try again later" },
-  },
-});
-
-
-router.post("/login", loginLimiter, login);
+router.post(
+  "/login",
+  loginLimiter,
+  objectBody(["email", "password"]),
+  body("email").isString().bail().trim().toLowerCase().isEmail().isLength({ max: 254 }),
+  body("password").isString().isLength({ min: 1, max: 200 }),
+  validate,
+  login
+);
 router.get("/me", requireAdmin, me);
 router.post("/logout", requireAdmin, logout);
 

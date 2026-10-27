@@ -1,31 +1,16 @@
 import { Router } from "express";
-import { body } from "express-validator";
+import { param } from "express-validator";
 import { validate } from "../middleware/validate.js";
+import { blogBody, listQuery } from "../middleware/requestValidation.js";
 import requireAdmin from "../middleware/requireAdmin.js";
 import * as ctrl from "../controllers/blogController.js";
 
 const router = Router();
-
-router.use(requireAdmin); // every admin endpoint is protected — login stays public elsewhere
-
-router.get("/", ctrl.listAdmin);
-router.get("/:id", ctrl.getAdmin);
-
-router.post("/",
-  body("title").trim().isLength({ min: 3, max: 200 }),
-  body("excerpt").trim().isLength({ min: 10, max: 500 }),
-  body("content").isString().isLength({ min: 10 }),
-  body("category").trim().notEmpty(),
-  body("author").trim().notEmpty(),
-  body("featuredImage.url").isString().notEmpty(),
-  body("featuredImage.alt").optional().isString(),
-  body("status").optional().isIn(["draft", "published"]),
-  validate, ctrl.create);
-
-router.patch("/:id",
-  body("status").optional().isIn(["draft", "published"]),
-  validate, ctrl.update);
-
-router.delete("/:id", ctrl.remove);
-
+router.use(requireAdmin);
+const id = () => param("id").isMongoId();
+router.get("/", listQuery({ category: true, status: ["draft", "published"] }), validate, ctrl.listAdmin);
+router.get("/:id", id(), validate, ctrl.getAdmin);
+router.post("/", blogBody(), validate, ctrl.create);
+router.patch("/:id", id(), blogBody(true), validate, ctrl.update);
+router.delete("/:id", id(), validate, ctrl.remove);
 export default router;

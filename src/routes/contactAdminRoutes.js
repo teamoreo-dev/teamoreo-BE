@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { body, param, query } from "express-validator";
+import { body, param } from "express-validator";
+import { listQuery, objectBody } from "../middleware/requestValidation.js";
 import { validate } from "../middleware/validate.js";
 import requireAdmin from "../middleware/requireAdmin.js";
 import * as ctrl from "../controllers/contactController.js";
@@ -12,9 +13,7 @@ const STATUSES = ["new", "read", "resolved"];
 
 router.get(
   "/",
-  query("status").optional().isIn(STATUSES).withMessage("Invalid status"),
-  query("page").optional().isInt({ min: 1 }),
-  query("limit").optional().isInt({ min: 1, max: 50 }),
+  listQuery({ status: STATUSES }),
   validate,
   ctrl.listAdmin
 );
@@ -24,7 +23,8 @@ router.get("/:id", param("id").isMongoId().withMessage("Invalid id"), validate, 
 router.patch(
   "/:id",
   param("id").isMongoId().withMessage("Invalid id"),
-  body("status").isIn(STATUSES).withMessage("status must be new, read or resolved"),
+  objectBody(["status"]),
+  body("status").isString().bail().isIn(STATUSES).withMessage("status must be new, read or resolved"),
   validate,
   ctrl.updateStatus
 );

@@ -1,512 +1,338 @@
-# 🍪 Team Oreo — Backend & Admin API
+# Team Oreo backend
 
-**Express · MongoDB Atlas · JWT Cookie Sessions · Cloudinary**
+Express 5, MongoDB/Mongoose, Argon2id, JWT cookie authentication and Cloudinary.
+The agreed API includes public articles/contact forms and protected administration for
+articles, enquiries, uploads and the dashboard. There is no public registration.
 
-![Node.js](https://img.shields.io/badge/Node.js-20%2B-green)
-![Express](https://img.shields.io/badge/Express-4-lightgrey)
-![MongoDB](https://img.shields.io/badge/Database-MongoDB%20Atlas-green)
-![Auth](https://img.shields.io/badge/Auth-JWT%20Cookie-blue)
-![Status](https://img.shields.io/badge/Status-In%20Development-orange)
+## Setup
 
-Public website integrations, content publishing, enquiry management and secure administration — per the Team Oreo Backend & Admin Development Brief.
-
----
-
-## 📑 Contents
-
-- [📌 Overview](#-overview)
-- [✨ Features](#-features)
-- [🧱 Tech Stack](#-tech-stack)
-- [📁 Project Structure](#-project-structure)
-- [⚙️ Setup](#️-setup)
-- [🔗 Integration Contract — Frontend, Read This](#-integration-contract--frontend-read-this)
-- [📡 API Reference](#-api-reference)
-- [🗃️ Data Models](#️-data-models)
-- [🔐 Security](#-security)
-- [🧪 Testing](#-testing)
-- [🗺️ Roadmap](#️-roadmap)
-- [🆘 Troubleshooting](#-troubleshooting)
-- [🌿 Git Workflow](#-git-workflow)
-
----
-
-## 📌 Overview
-
-A lightweight content and enquiry management API for the Team Oreo website rebuild.
-
-It powers admin authentication, blog publishing and (next) contact enquiries — intentionally not a CRM, enterprise CMS or multi-role platform.
-
-### Milestone Scope & Status
-
-| Milestone | Scope | Status |
-|---|---|---|
-| M1 — Contract & setup | Express app, Atlas connection, env contract | ✅ Done |
-| M2 — Security & models | Admin seed / login / logout / me, auth middleware, error handling | ✅ Done |
-| M3 — Blog API | Blog CRUD, slugs, drafts/publish, image uploads, validation | ✅ Done |
-| M4 — Contact & dashboard | Public contact form API, admin enquiries, dashboard summary | 🔜 Next |
-| M5 — Admin UI & integration | Next.js `/admin` routes, end-to-end QA | ⏳ Pending |
-
----
-
-## ✨ Features
-
-### 🔐 Authentication & Access Control
-
-- Login / logout / session check via short-lived JWT in an HttpOnly cookie.
-- Admins provisioned through a documented CLI script — no public sign-up, ever.
-- Server-side `requireAdmin` middleware on every protected endpoint (hiding buttons ≠ access control).
-- Login rate-limiting and deliberately generic credential errors.
-
-### 📰 Blog Content Management
-
-- Full CRUD with draft → publish → unpublish workflow.
-- Auto-generated URL slugs with collision handling (`title`, `title-2`, `title-3`…).
-- Drafts never appear in public endpoints — filtered server-side.
-- Featured image uploads to Cloudinary (MIME whitelist, 5 MB cap).
-- Rich-text HTML sanitized server-side before storage (stored-XSS defense).
-
-### ✅ Quality & Reliability
-
-- Field-level request validation with structured error responses.
-- One consistent response envelope across every endpoint.
-- Centralized error handler — no stack traces, credentials or DB internals ever reach clients.
-
----
-
-## 🧱 Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Runtime | Node.js 20+ (ESM) · `node --watch` in dev |
-| Framework | Express 4 |
-| Database | MongoDB Atlas + Mongoose |
-| Auth | `jsonwebtoken` + Argon2id (legacy bcrypt hashes upgraded on login), HttpOnly cookies |
-| Validation | `express-validator` · `sanitize-html` |
-| Uploads | `multer` → Cloudinary |
-| Hardening | `helmet` · `cors` · `express-rate-limit` · `cookie-parser` |
-
----
-
-## 📁 Project Structure
-
-```text
-src/
-├── server.js                    # Entry point: env check → DB connect → listen
-├── app.js                       # Middleware stack, route mounting, error handler
-├── config/
-│   └── db.js                    # Mongoose connection
-├── models/
-│   ├── Admin.js                 # Admin accounts
-│   └── Blog.js                  # Articles + uniqueSlug() helper
-├── controllers/
-│   ├── authController.js        # Login / me / logout
-│   ├── blogController.js       # Public + admin blog CRUD
-│   └── uploadController.js     # Multer → Cloudinary
-├── routes/
-│   ├── authRoutes.js           # /api/admin/auth/*
-│   ├── blogPublicRoutes.js     # /api/blogs/**
-│   ├── blogAdminRoutes.js      # /api/admin/blogs/** (protected)
-│   └── uploadRoutes.js         # /api/admin/uploads (protected)
-├── middleware/
-│   ├── requireAdmin.js         # Verifies cookie, loads admin, attaches req.admin
-│   ├── validate.js             # express-validator results → 400 envelope
-│   ├── originCheck.js          # CSRF defense: origin allowlist
-│   └── rateLimiters.js         # Login limiter
-└── scripts/
-    └── createAdmin.js          # CLI: create/reset the first admin
-```
-
----
-
-## ⚙️ Setup
-
-### Prerequisites
-
-| Tool | Why | Get it |
-|---|---|---|
-| Node.js ≥ 20 | Run the server | [nodejs.org](https://nodejs.org/) |
-| MongoDB Atlas account | Free M0 cluster = your database | [mongodb.com/atlas](https://www.mongodb.com/atlas) |
-| Cloudinary account | Blog image storage (optional for CRUD testing) | [cloudinary.com](https://cloudinary.com/) |
-
-### 1️⃣ Install
+Use Node.js 22.21.1 or newer (the dependency floor is Node.js 20.19).
 
 ```bash
-git clone <repo-url>
-cd <repo>
-npm install
+npm ci
+cp .env.example .env
+# Fill in local/staging credentials and a random JWT_SECRET before starting.
+npm run seed:admin
+npm run dev
+# Production process:
+npm start
 ```
 
-### 2️⃣ Configure Environment
+`npm run dev` uses Node's watch mode. `npm start` validates configuration, connects
+to MongoDB, waits for model indexes and then listens. A duplicate legacy slug/email
+can prevent the integrity index from being created; resolve such data in staging
+before deployment. Startup does not drop indexes or reset data.
+`GET /api/health` returns `{"success":true,"message":"TeamOreo API is running"}`.
+The server listens only after MongoDB is available; the health endpoint is a process
+health check, not an ongoing dependency readiness probe.
 
-Copy `.env.example` → `.env` and fill in real values:
+## Environment
 
-```dotenv
-PORT=5000
-NODE_ENV=development
-MONGODB_URI=mongodb+srv://<user>:<pass>@cluster0.xxxxx.mongodb.net/team-oreo
-JWT_SECRET=<long-random-string>
-JWT_EXPIRES_IN=2h
-CLIENT_ORIGIN=http://localhost:3000
-CLOUDINARY_CLOUD_NAME=
-CLOUDINARY_API_KEY=
-CLOUDINARY_API_SECRET=
-```
+Never commit `.env` or credentials. `.env.example` contains configuration names and
+safe examples. The application does not automatically provision admins at startup.
 
-Generate a strong JWT secret:
+| Variable | Meaning |
+| --- | --- |
+| `PORT` | TCP port, default `5000` |
+| `NODE_ENV` | Set `production` for HTTPS Secure cookies |
+| `MONGODB_URI` | Required MongoDB URI; use a dedicated staging/test database for verification |
+| `JWT_SECRET` | Required random secret, at least 32 characters |
+| `JWT_EXPIRES_IN` | Default `2h`; positive integer seconds or integer with `s`, `m`, `h`, `d`, `w`; maximum 24 days |
+| `CLIENT_ORIGIN` | Required comma-separated exact HTTP(S) frontend origins, without paths, wildcards or trailing slashes; HTTPS required in production |
+| `COOKIE_SAME_SITE` | `lax` (default), `strict`, or `none`; `none` requires production HTTPS Secure cookies |
+| `TRUST_PROXY` | Optional explicit trusted proxy hop count; leave unset for a directly exposed server |
+| `ADMIN_NAME` | Name used by the admin provisioning script |
+| `ADMIN_EMAIL` | Email used by the admin provisioning script |
+| `ADMIN_PASSWORD` | Password used by the admin provisioning script, 12-200 characters |
+| `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud/account name; required for uploads and managed cleanup |
+| `CLOUDINARY_API_KEY` | Cloudinary server API key |
+| `CLOUDINARY_API_SECRET` | Cloudinary server API secret |
+
+Cloudinary credentials are optional for running article/contact CRUD with external
+image URLs. Missing/invalid image-service credentials produce `502 CLOUDINARY_ERROR`
+on upload, with safe client output. Cleanup failures retain the remote image and do
+not roll back a successful database change.
+
+Generate a secret locally:
 
 ```bash
-node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"
 ```
 
-> ⚠️ The server refuses to start if `MONGODB_URI`, `JWT_SECRET`, or `CLIENT_ORIGIN` is missing — intentional (brief §9.2). Real secrets live only in `.env` (gitignored); `.env.example` ships blank placeholders.
+Set only the trusted number of proxy hops. A permissive proxy setting can let clients
+spoof the IP used by rate limiting. Rate limits use process-local memory: use one API
+instance for the documented quotas, or configure a shared store before scaling out.
 
-#### Environment Variables
+## Admin provisioning and authentication
 
-| Variable | Required | Purpose |
-|---|---|---|
-| `PORT` | — | API port (default 5000) |
-| `NODE_ENV` | — | Production enables Secure cookies (HTTPS required) |
-| `MONGODB_URI` | ✅ | Atlas connection string |
-| `JWT_SECRET` | ✅ | Signs session tokens |
-| `JWT_EXPIRES_IN` | — | Session lifetime (default 2h) |
-| `CLIENT_ORIGIN` | ✅ | Comma-separated allowlist for CORS + origin checks |
-| `CLOUDINARY_*` | For uploads | Image storage credentials |
+Set `ADMIN_NAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` and `MONGODB_URI` in `.env`, then run
+`npm run seed:admin`. This creates an admin only if that email does not already exist.
+It does not reset an existing password.
 
-### 3️⃣ Create the First Administrator
-
-No public sign-up exists (brief §4.2). Provision via CLI:
+For an intentional create/reset, use the CLI (be aware command arguments may enter
+shell history; prefer environment-based provisioning for the initial account):
 
 ```bash
-node src/scripts/createAdmin.js admin@teamoreo.test "StrongPassword123" "Oreo Admin"
+node src/scripts/createAdmin.js admin@example.com 'a-strong-example-password' 'Oreo Admin'
 ```
 
-Expected output:
+Omitting the optional CLI name preserves an existing account name.
+Both scripts validate inputs and hash passwords with Argon2id. Legacy bcrypt hashes
+remain supported to preserve existing accounts; successful login upgrades them to
+Argon2id. New accounts never use bcrypt.
 
-```text
-✅ Admin created: admin@teamoreo.test
-```
-
-Running it again with an existing email resets that admin's password.
-
-### 4️⃣ Run
-
-```bash
-npm run dev   # Development — auto-restarts on file change
-npm start     # Production
-```
-
-**Health check:**
-
-`GET http://localhost:5000/api/health`
-
-Expected response:
+`POST /api/admin/auth/login` accepts only `{ "email": "admin@example.com", "password": "..." }`.
+The email is trimmed and lowercased; the password is never trimmed.
+Success (`200`) sets `admin_token` and returns:
 
 ```json
 {
   "success": true,
-  "message": "TeamOreo API is running"
-}
-```
-
----
-
-## 🔗 Integration Contract — Frontend, Read This
-
-Agreed up front per brief §3.2, so parallel frontend work is safe.
-
-| Item | Decision |
-|---|---|
-| API base URL (dev) | `http://localhost:5000` |
-| Auth | JWT in cookie `admin_token` — HttpOnly · SameSite=Lax · Secure in prod · 2h expiry |
-| Cookies on frontend | Nothing to do — same-origin requests attach it automatically |
-| Recommended proxy | Next.js rewrite (below) keeps frontend + API same-origin |
-| Success envelope | `{ "success": true, "data": …, "message": "…" }` |
-| Error envelope | `{ "success": false, "error": { "code", "message", "fields"? } }` |
-| Error codes | `VALIDATION_ERROR` · `INVALID_JSON` · `INVALID_CREDENTIALS` · `UNAUTHENTICATED` · `FORBIDDEN` · `NOT_FOUND` · `CONFLICT` · `INVALID_FILE` · `FILE_TOO_LARGE` · `RATE_LIMITED` · `INTERNAL_ERROR` |
-| Status codes | 200/201 ok · 400 bad input/JSON · 401 unauthenticated · 403 bad origin · 404 missing · 409 duplicate · 413 oversized upload · 429 rate-limited · 500 internal |
-| Field naming | camelCase, exactly as in the schema tables |
-
-### Next.js Rewrite
-
-```javascript
-// next.config.js — same-origin cookie handling
-async rewrites() {
-  return [
-    {
-      source: '/api/:path*',
-      destination: 'http://localhost:5000/api/:path*',
-    },
-  ];
-}
-```
-
----
-
-## 📡 API Reference
-
-**Method legend:** 🟢 GET · 🔵 POST · 🟡 PATCH · 🔴 DELETE
-
-All admin routes require the `admin_token` cookie; requests without it get `401` before any handler runs.
-
-### 🛡️ Authentication — `/api/admin/auth`
-
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| 🔵 POST | `/api/admin/auth/login` | Public | Validate credentials, set session cookie |
-| 🟢 GET | `/api/admin/auth/me` | Admin | Current admin profile (password hash never returned) |
-| 🔵 POST | `/api/admin/auth/logout` | Admin | Clear the session cookie |
-
-**Login request:**
-
-```json
-{
-  "email": "admin@teamoreo.test",
-  "password": "StrongPassword123"
-}
-```
-
-**Expected response — `200`:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "_id": "…",
-    "email": "…",
-    "name": "Oreo Admin"
-  },
+  "data": { "admin": { "id": "mongo-object-id", "name": "Oreo Admin", "email": "admin@example.com" } },
   "message": "Logged in"
 }
 ```
 
-- ❌ Wrong credentials → `401 INVALID_CREDENTIALS` — `"Invalid email or password"`, always generic.
-- 🚦 Rate limit: 10 attempts / 15 min → `429`.
-- 🍪 Success sets `admin_token`; no extra headers needed on later calls.
+`GET /api/admin/auth/me` returns the same `data.admin` structure without the message.
+It verifies an HS256 JWT and loads the current admin; deleted admins cannot restore a
+session. Password hashes and tokens are never returned in JSON.
+Invalid credentials return `401 INVALID_CREDENTIALS` with a generic message.
+Login permits 10 attempts per IP per 15 minutes, including validation failures.
 
-### 📰 Blog — Public (No Auth)
+`POST /api/admin/auth/logout` requires an authenticated session and clears the cookie
+using matching attributes. Expired sessions already receive `401` and can be treated
+as logged out by the frontend. JWTs are stateless: clearing the browser cookie does
+not revoke an independently copied token. Rotate the signing secret to invalidate
+all sessions when required.
 
-| Method | Endpoint | Description |
-|---|---|---|
-| 🟢 GET | `/api/blogs` | Published only. Query: `page` · `limit` (≤50) · `category` · `search` |
-| 🟢 GET | `/api/blogs/:slug` | One published article by slug — 404 for drafts/missing |
+## CORS, cookies and frontend integration
 
-**Example request:**
+For local development:
 
-```http
-GET /api/blogs?page=1&limit=9&search=championship
+```dotenv
+CLIENT_ORIGIN=http://localhost:3002
+NODE_ENV=development
+COOKIE_SAME_SITE=lax
+PORT=5000
 ```
 
-**Example response:**
+Use `localhost` consistently for both frontend and backend (mixing `127.0.0.1` and
+`localhost` changes cookie/site behavior). Send credentials on login and every
+admin request:
+
+```javascript
+const response = await fetch('http://localhost:5000/api/admin/auth/login', {
+  method: 'POST',
+  credentials: 'include',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email, password }),
+});
+const result = await response.json();
+// Session restoration:
+await fetch('http://localhost:5000/api/admin/auth/me', { credentials: 'include' });
+```
+
+For related production sites, for example `https://www.example.com` and
+`https://api.example.com`, use `NODE_ENV=production`, `COOKIE_SAME_SITE=lax` and the
+exact frontend origin(s). For unrelated production sites use `COOKIE_SAME_SITE=none`;
+HTTPS is mandatory. Browser third-party-cookie restrictions can still prevent
+sessions: a same-site API domain or same-origin reverse proxy avoids that dependency.
+Cookies are HttpOnly, host-only, path `/`; their Max-Age uses the same integer lifetime
+as the JWT. Logout clears those same attributes.
+
+Multiple frontend origins:
+
+```dotenv
+CLIENT_ORIGIN=https://www.example.com,https://admin.example.com
+```
+
+CORS echoes only allowlisted origins and enables credentials; preflight is supported.
+Origin protection uses the same list for writes. Non-browser CLI/server requests
+without Origin are intentionally allowed; explicit cross-site browser writes without
+Origin are rejected. Send JSON for API bodies; only uploads accept multipart. CORS
+is not authentication: every protected route independently checks the admin cookie.
+
+## Response and error contract
+
+Success: `{ "success": true, "data": ..., "message": "optional message" }`.
+Health omits `data`. List responses use:
+
+```json
+{ "success": true, "data": { "items": [], "page": 1, "limit": 9, "total": 0, "totalPages": 1 } }
+```
+
+Error: `{ "success": false, "error": { "code": "VALIDATION_ERROR", "message": "Check the submitted fields", "fields": { "title": "Invalid value" } } }`.
+The optional fields map identifies invalid fields. Do not depend on specific validator
+message text; use the status, error code and field names. A single final error handler
+maps parser, Mongoose, multipart, Cloudinary and unexpected errors. Unexpected errors
+return safe messages, without stack traces or upstream secrets.
+
+| Status | Codes |
+| --- | --- |
+| 400 | `VALIDATION_ERROR`, `INVALID_JSON`, `INVALID_FILE` |
+| 401 | `INVALID_CREDENTIALS`, `UNAUTHENTICATED` |
+| 403 | `FORBIDDEN_ORIGIN` |
+| 404 | `NOT_FOUND` |
+| 409 | `CONFLICT` (unique value or concurrent article edit) |
+| 413 | `FILE_TOO_LARGE`, `PAYLOAD_TOO_LARGE` |
+| 429 | `RATE_LIMITED` |
+| 500 | `INTERNAL_ERROR` |
+| 502 | `CLOUDINARY_ERROR` |
+
+JSON bodies are limited to 1 MB. Malformed IDs return 400; valid IDs with no matching
+record return 404. Unknown routes return a JSON 404. Unsupported mutation fields,
+empty PATCH bodies, and incorrect types are rejected. Query values must be scalar;
+repeated page/search/category/status parameters are invalid. Page is an integer
+1-1,000,000 and limit is 1-50. Search is literal case-insensitive text, up to 200
+characters (regular-expression operators are escaped).
+
+## Complete API inventory
+
+All `/api/admin/*` routes require the admin cookie except login.
+
+| Method | Endpoint | Contract |
+| --- | --- | --- |
+| GET | `/api/health` | Process health |
+| POST | `/api/admin/auth/login` | JSON email/password; set session cookie |
+| GET | `/api/admin/auth/me` | Restore `data.admin` |
+| POST | `/api/admin/auth/logout` | Clear cookie; `data: null` |
+| GET | `/api/blogs` | Published cards; `page`, `limit` (default 9), `category`, `search` |
+| GET | `/api/blogs/:slug` | Full published article; draft/missing gives 404 |
+| GET | `/api/admin/blogs` | All articles; same filters plus `status=draft|published` |
+| GET | `/api/admin/blogs/:id` | Full article for editor |
+| POST | `/api/admin/blogs` | Create article; 201 and `data` article |
+| PATCH | `/api/admin/blogs/:id` | Edit/publish/unpublish; 200 and `data` article |
+| DELETE | `/api/admin/blogs/:id` | Hard delete; 200, `data: null` |
+| POST | `/api/admin/uploads` | Multipart `image`; 201 and image metadata |
+| POST | `/api/contact` | Submit enquiry; 201, `data: null` |
+| GET | `/api/admin/contacts` | List enquiries; `page`, `limit` (default 10), `status`, `search` |
+| GET | `/api/admin/contacts/:id` | Full enquiry; does not implicitly mark it read |
+| PATCH | `/api/admin/contacts/:id` | JSON `{ "status": "new|read|resolved" }` |
+| DELETE | `/api/admin/contacts/:id` | Hard delete; 200, `data: null` |
+| GET | `/api/admin/dashboard/summary` | Counts and up to five recent enquiries |
+
+## Article workflow and fields
+
+Example create body:
 
 ```json
 {
-  "success": true,
-  "data": {
-    "items": [
-      {
-        "title": "Team Oreo Wins the Championship",
-        "slug": "team-oreo-wins-the-championship",
-        "excerpt": "A recap of the biggest match.",
-        "featuredImage": {
-          "url": "https://…",
-          "publicId": "…",
-          "alt": "…"
-        },
-        "category": "News",
-        "author": "Oreo Admin",
-        "publishedAt": "2025-01-15T10:00:00.000Z"
-      }
-    ],
-    "page": 1,
-    "limit": 9,
-    "total": 1,
-    "totalPages": 1
-  }
-}
-```
-
-Listing responses exclude `content` (cards don't need the body — fetch it via the slug endpoint). Newest-first by `publishedAt`; search is case-insensitive across title + excerpt.
-
-### ✏️ Blog — Admin (Session Required)
-
-| Method | Endpoint | Description |
-|---|---|---|
-| 🟢 GET | `/api/admin/blogs` | All statuses · query: `page` · `limit` · `status` · `category` · `search` |
-| 🟢 GET | `/api/admin/blogs/:id` | Full article including content (edit form) |
-| 🔵 POST | `/api/admin/blogs` | Create draft or published article |
-| 🟡 PATCH | `/api/admin/blogs/:id` | Partial update — any subset of fields, including status |
-| 🔴 DELETE | `/api/admin/blogs/:id` | Hard delete — confirm in the UI |
-
-**Create blog request** (`*` = required):
-
-```json
-{
-  "title": "Team Oreo Wins the Championship",
-  "excerpt": "A recap of the biggest match.",
-  "content": "<h2>Match day</h2><p>Full story…</p>",
+  "title": "Team Oreo News",
+  "excerpt": "News from the Team Oreo community.",
+  "content": "<h2>Match day</h2><p>The full article.</p>",
+  "featuredImage": { "url": "https://example.com/photo.jpg", "alt": "Team photo" },
   "category": "News",
   "author": "Oreo Admin",
-  "featuredImage": {
-    "url": "https://…",
-    "alt": "…"
-  },
-  "status": "published"
+  "status": "draft",
+  "seoTitle": "Team Oreo News",
+  "seoDescription": "Latest community news."
 }
 ```
 
-- `title`* — 3–200 chars.
-- `excerpt`* — 10–500 chars.
-- `content`* — HTML, sanitized server-side.
-- `category`* — required.
-- `author`* — required.
-- `featuredImage.url`* — required.
-- `status` — optional; defaults to `draft`.
+Required: title 3-200 characters, excerpt 10-500, content 1-500,000, category 1-100,
+author 1-150 and featuredImage.url (HTTP(S), up to 2048). Optional: slug (1-220 input
+characters, normalized for URLs), status (defaults to draft), image alt/publicId
+(up to 300 each), seoTitle (up to 200), seoDescription (up to 500). Whitespace is
+trimmed from text fields. HTML is sanitized before persistence; script-only content
+that becomes empty is rejected. Scripts, handlers, unsafe protocols and embedded
+frames are not retained.
 
-**Publishing rules:**
+To publish: `PATCH { "status": "published" }` sets publishedAt if absent. To unpublish:
+`PATCH { "status": "draft" }` clears publishedAt. Republishing sets a new timestamp.
+Changing a title preserves the existing URL. An explicit slug change is normalized;
+resubmitting an effectively identical slug preserves it. Collisions normally get
+numeric suffixes. A concurrent unique-index collision retries with a random suffix
+(up to four retries), then returns 409. The database unique slug index remains the
+integrity guarantee. Optimistic concurrency prevents stale simultaneous updates
+from overwriting each other; reload on 409.
 
-- `status: "published"` sets `publishedAt` on first publish only; `status: "draft"` resets it to `null`.
-- Slug is editable via `PATCH { "slug": "…" }` — collisions auto-suffix `-2`, `-3`…
-- Every admin route returns `401` cleanly without a valid session (verified, not assumed).
+Public listings exclude article content and drafts, sort newest published first,
+and support exact category filtering and title/excerpt search. Public slug detail
+also requires published status. Admin list/detail includes content and all statuses.
+Articles carry `_id`, slug, publishedAt, createdAt, updatedAt and the documented fields.
+On PATCH, featuredImage replaces the entire image object; always include its URL and
+preserve publicId/alt when keeping the existing image.
 
-### 🖼️ Image Uploads
+## Uploads and image lifecycle
 
-| Method | Endpoint | Auth | Contract |
-|---|---|---|---|
-| 🔵 POST | `/api/admin/uploads` | Admin | `multipart/form-data`, field name `image` · JPEG/PNG/WebP · ≤ 5 MB |
+```javascript
+const form = new FormData();
+form.append('image', file);
+const response = await fetch(`${apiBase}/api/admin/uploads`, {
+  method: 'POST', credentials: 'include', body: form,
+});
+// Let the browser set the multipart Content-Type/boundary.
+```
 
-**Example response — `201`:**
+One JPEG, PNG or WebP, up to 5 MB. MIME and basic byte signatures are checked locally;
+Cloudinary validates the image and allowed formats. Missing files give 400, invalid
+MIME/signature/field gives `400 INVALID_FILE`, oversize gives `413 FILE_TOO_LARGE`.
+Success:
 
 ```json
 {
   "success": true,
-  "data": {
-    "url": "https://res.cloudinary.com/…",
-    "publicId": "team-oreo/blogs/…",
-    "bytes": 102400
-  },
+  "data": { "url": "https://res.cloudinary.com/cloud/image/upload/v123/team-oreo/blogs/asset.png", "publicId": "team-oreo/blogs/asset", "bytes": 102400 },
   "message": "Image uploaded"
 }
 ```
 
-Use `data.url` as `featuredImage.url`.
+Save both `url` and `publicId` into the article's featuredImage; add alt text in the
+editor. Cleanup runs after a successful article deletion or image replacement.
+Only canonical HTTPS URLs in the configured Cloudinary account's `team-oreo/blogs`
+folder with a matching stored publicId are managed. URL-only legacy records,
+external URLs, transformed/noncanonical URLs and other folders/accounts are retained;
+no identifier is guessed from a legacy URL. Assets still referenced by another
+article (by publicId or exact URL) are retained.
 
-Wrong type → `400 INVALID_FILE` · Over 5 MB → `413 FILE_TOO_LARGE`.
+Remote deletion uses invalidation. A cleanup/database-reference-check failure logs
+the managed publicId for an operator to retry and preserves the successful article
+write. There is no background retry queue. An upload abandoned before saving an
+article, or a retained legacy asset, requires deliberate manual reconciliation in
+Cloudinary. Avoid reusing an asset across articles during concurrent deletion; the
+reference check is best effort across independent database/Cloudinary systems.
 
----
+## Contact workflow and dashboard
 
-## 🗃️ Data Models
+Contact submission requires name (2-100), email (valid, up to 254) and message
+(10-5000). Optional established fields: companyName (up to 150), phone (5-30 digits,
+spaces and `+()-`), subject (up to 150). There is no attachment API. Empty optional
+fields may be omitted. Status and timestamps are server-owned. `website` is the
+honeypot: leave it empty; filled values receive an acknowledgement with no record.
+Public responses never expose enquiry data. Five successful submissions per IP per
+hour are allowed; failed requests do not consume the quota.
 
-### Admin — `src/models/admin.js`
+Admin search covers name, email, companyName and subject. Lists omit message and
+phone; detail returns the complete enquiry. Set status explicitly to `new`, `read`
+or `resolved`. Deletion is permanent.
 
-| Field | Type | Rules |
-|---|---|---|
-| `name` | String | Required, trimmed |
-| `email` | String | Required · unique · lowercased |
-| `passwordHash` | String | Required — Argon2id hash; legacy bcrypt hashes are upgraded on login |
-| `createdAt` / `updatedAt` | Date | Automatic |
+Dashboard `data` is `{ totalArticles, publishedArticles, totalEnquiries, newEnquiries,
+recentEnquiries }`; recentEnquiries is at most five newest records with `_id`, name,
+email, subject, status and createdAt. Zero records produce zero counts and an empty
+array. No unrelated analytics are added.
 
-### Blog — `src/models/blog.js`
+## Verification and deployment
 
-| Field | Type | Rules |
-|---|---|---|
-| `title` | String | Required · 3–200 |
-| `slug` | String | Required · unique · URL-safe · auto-generated, editable |
-| `excerpt` | String | Required · 10–500 |
-| `content` | String | Required · HTML · sanitized pre-storage |
-| `featuredImage` | Object | `{ url (required), publicId, alt }` |
-| `category` | String | Required |
-| `author` | String | Required |
-| `status` | String | `draft` \| `published` — default `draft` |
-| `publishedAt` | Date | Set on first publish · `null` for drafts |
-| `seoTitle` / `seoDescription` | String | Optional |
-| `createdAt` / `updatedAt` | Date | Automatic |
-
-**Indexes:** Unique slug · `{ status: 1, publishedAt: -1 }` (public listing) · category (filtering).
-
-### Contact — Planned (M4)
-
-📋 **Planned schema — not yet implemented.**
-
----
-
-## 🔐 Security
-
-| Control | Implementation |
-|---|---|
-| 🔑 Passwords | Argon2id · legacy bcrypt hashes upgraded on login · generic login errors · no public sign-up (CLI only) |
-| 🎫 Sessions | 2h signed JWT · HttpOnly · SameSite=Lax · Secure in production |
-| 🛡️ CSRF | SameSite cookie + `originCheck` middleware (non-allowlisted origins → 403 on state changes) |
-| 🚪 Authorization | `requireAdmin` verifies JWT and loads the admin from DB on every protected route |
-| 🧼 XSS | `sanitize-html` strips scripts/event handlers from article content before storage |
-| ✅ Input | Every body/query validated; malformed JSON → clean `400 INVALID_JSON` |
-| 🖼️ Uploads | MIME whitelist · 5 MB cap · Cloudinary-generated safe identifiers |
-| 🚫 Errors | Centralized handler — no stack traces, secrets or DB internals to clients |
-| 🚦 Rate limits | Login: 10 / 15 min |
-
----
-
-## 🧪 Testing
-
-Manual suite (Thunder Client) mapped to brief §11.1:
-
-- ✅ Valid login sets cookie; `/me` returns profile.
-- ✅ Wrong password → `401 INVALID_CREDENTIALS` (generic).
-- ✅ Admin endpoints without cookie → `401 UNAUTHENTICATED`.
-- ✅ Malformed JSON body → `400 INVALID_JSON` (no HTML/stack trace).
-- ✅ Create published article → appears in public list + slug detail.
-- ⬜ Unpublish → article vanishes from public endpoints.
-- ⬜ Republish → reappears.
-- ⬜ Duplicate title → slug `-2` suffix.
-- ⬜ Validation failure → `400` with fields map.
-- ⬜ Delete → removed from admin + public.
-- ⬜ Image upload → Cloudinary URL (endpoint implemented; Thunder free tier blocks file uploads — test via `curl -F` or Postman).
-
-📸 Evidence screenshots are attached to the PR.
-
----
-
-## 🗺️ Roadmap
-
-### Next — M4 (Contact & Dashboard)
-
-- Contact model + public `POST /api/contact` (validated, rate-limited, no auth).
-- Admin enquiry management — list / detail / status (`new` → `read` → `resolved`) / delete.
-- `GET /api/admin/dashboard/summary` — article + enquiry counts, 5 recent enquiries.
-
-### Then — M5 (Admin UI & Integration)
-
-- Next.js `/admin` routes: login · dashboard · blogs list/new/edit · contacts list/detail · sidebar + logout.
-- End-to-end integration with the public blog/contact frontend owner.
-
-### Open Questions for Team Lead (Brief §13)
-
-- Public blog route `/blogs` vs `/insights`.
-- Contact subject field.
-- Upload Brief attachment.
-- Cloudinary account ownership.
-- Admin credential provisioning.
-- API/DB hosting.
-
----
-
-## 🆘 Troubleshooting
-
-⚠️ Common issues & fixes — click to expand.
-
----
-
-## 🌿 Git Workflow
-
-```text
-staging ──← feature/backend-admin-system (PRs only)
+```bash
+npm test
+npm audit --omit=dev
+npm run test:coverage
+git diff --check
 ```
 
-- Branch from latest `staging` → PR into `staging`.
-- ❌ Never push directly to `main`.
-- ❌ Never commit `.env` or rewrite another developer's pages.
+The original five app-level tests are retained. Expanded HTTP tests use real Express,
+Mongoose document validation, JWT, Argon2id/bcrypt, multipart parsing and sanitization,
+with isolated in-memory model query/persistence doubles, mocked provisioning
+connections, and a Cloudinary stream
+double. They open only an ephemeral loopback HTTP server. No production database or
+Cloudinary asset is used or deleted. Coverage is a local code metric, not proof of
+external service behavior.
 
----
-
-**Team Oreo · Backend & Admin System · M1–M3 delivered**
-
-Questions? Ping the backend/admin assignee on the PR.
+Before release, use a disposable/staging database and Cloudinary account to verify:
+provision admin; login and cookie restoration in the actual browser/origin topology;
+article CRUD and draft/publish/unpublish; literal search and pagination; contact
+submission/status/deletion; dashboard; upload a disposable image and confirm
+replacement/deletion cleanup; logout. Also test the deployed proxy IP/rate-limit
+configuration. Never use production records for destructive verification. Ensure
+HTTPS, MongoDB backups, restricted database credentials/network access and a process
+supervisor are configured by the hosting environment.

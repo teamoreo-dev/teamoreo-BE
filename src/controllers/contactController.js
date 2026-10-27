@@ -1,4 +1,4 @@
-import Contact from "../models/Contact.js";
+import Contact from "../models/contact.js";
 
 const escapeRegex = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -10,10 +10,9 @@ const paging = (req) => ({
 const notFound = (res) =>
   res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Enquiry not found" } });
 
- //public
+// Public
 export async function submit(req, res, next) {
   try {
-    
     const { name, companyName, email, phone, subject, message } = req.body;
     await Contact.create({ name, companyName, email, phone, subject, message });
 
@@ -21,7 +20,7 @@ export async function submit(req, res, next) {
   } catch (err) { next(err); }
 }
 
- // Admin
+// Admin
 export async function listAdmin(req, res, next) {
   try {
     const { page, limit } = paging(req);
@@ -65,7 +64,7 @@ export async function updateStatus(req, res, next) {
 
 export async function remove(req, res, next) {
   try {
-    const contact = await Contact.findByIdAndDelete(req.params.id);   
+    const contact = await Contact.findByIdAndDelete(req.params.id);
     if (!contact) return notFound(res);
     res.json({ success: true, data: null, message: "Enquiry deleted" });
   } catch (err) { next(err); }
