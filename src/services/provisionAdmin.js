@@ -1,3 +1,4 @@
+import dns from "node:dns";
 import mongoose from "mongoose";
 import argon2 from "argon2";
 import { body, validationResult } from "express-validator";
@@ -17,7 +18,15 @@ export async function provisionAdmin({ email, password, name, reset = false, upd
   await validateAdminInput({ email, password, name });
   if (!process.env.MONGODB_URI) throw new Error("MONGODB_URI is required");
   try {
-    await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
+    const dnsServers = (process.env.MONGODB_DNS_SERVERS || "")
+      .split(",")
+      .map((server) => server.trim())
+      .filter(Boolean);
+    if (dnsServers.length) dns.setServers(dnsServers);
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 10000,
+      connectTimeoutMS: 10000,
+    });
     await Admin.init();
     const normalizedEmail = email.trim().toLowerCase();
     const existing = await Admin.findOne({ email: normalizedEmail });
